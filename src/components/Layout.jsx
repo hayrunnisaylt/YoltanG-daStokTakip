@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import myLogo from '../public/logo.png';
 
 export default function Layout({ children, title, setAuth }) {
   const navigate = useNavigate();

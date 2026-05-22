@@ -1,6 +1,7 @@
 // src/pages/Login.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import myLogo from '../public/logo.png';
 
 export default function Login({ setAuth }) {
   const [username, setUsername] = useState('');
@@ -45,7 +46,7 @@ export default function Login({ setAuth }) {
       <div className="max-w-md w-full bg-gray-200 p-8 rounded-3xl shadow-xl border border-gray-300">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gray-400 rounded-2xl mx-auto flex items-center justify-center mb-4">
-            <img src="/public/logo.png" alt="Logo" className="h-10 w-auto" />
+            <img src={myLogo} alt="Logo" className="h-10 w-auto" />
           </div>
           <h2 className="text-2xl font-black text-gray-900">YOLTAN GIDA</h2>
           <p className="text-xs text-gray-600 font-bold uppercase tracking-widest mt-1">Stok Takip Otomasyonu</p>
