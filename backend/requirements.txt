@@ -4,3 +4,4 @@ motor
 pdfplumber
 beautifulsoup4
 pydantic
+python-multipart
