@@ -1,0 +1,312 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Layout from '../components/Layout';
+
+export default function Stocks({ setAuth }) {
+  const navigate = useNavigate();
+  const [products, setProducts] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [editName, setEditName] = useState('');
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products-list`);
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(data);
+      }
+    } catch (err) {
+      console.error("Stok verileri yüklenirken hata:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const triggerDeleteModal = (product) => {
+    setProductToDelete(product);
+    setIsModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+    
+    setDeleteLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/delete-product/${productToDelete.id}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setIsModalOpen(false);
+        setProductToDelete(null);
+        fetchProducts(); 
+      } else {
+        const errData = await response.json();
+        alert(`Hata: ${errData.detail || "Ürün silinemedi."}`);
+      }
+    } catch (err) {
+      alert("Sunucuyla bağlantı kurulamadı.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleNameEditStart = (product) => {
+    setEditingProductId(product.id);
+    setEditName(product.urun_adi);
+  };
+
+  const handleNameEditCancel = () => {
+    setEditingProductId(null);
+    setEditName('');
+  };
+
+  const handleNameEditSave = async (productId) => {
+    if (!editName.trim()) return;
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/update-product-name/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_name: editName })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(products.map(p => p.id === productId ? { ...p, urun_adi: data.new_name } : p));
+        setEditingProductId(null);
+      } else {
+        alert("Ürün adı güncellenemedi.");
+      }
+    } catch (err) {
+      console.error("İsim güncellenemedi:", err);
+      alert("Sunucuyla bağlantı kurulamadı.");
+    }
+  };
+
+  const handleStockUpdate = async (productId, amount) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/update-stock/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount })
+      });
+      if (response.ok) {
+        setProducts(products.map(p => {
+          if (p.id === productId) {
+             const newStock = p.stok_miktari + amount;
+             return { ...p, stok_miktari: newStock < 0 ? 0 : newStock };
+          }
+          return p;
+        }));
+      }
+    } catch (err) {
+      console.error("Stok güncellenemedi:", err);
+    }
+  };
+
+  const filteredProducts = products.filter(prod =>
+    prod.urun_adi.toLowerCase().includes(searchTerm.toLowerCase())
+  ).sort((a, b) => a.urun_adi.localeCompare(b.urun_adi, 'tr'));
+
+  return (
+    <Layout title="Stok Depo Envanteri" setAuth={setAuth}>
+      <main className="flex-1 overflow-hidden bg-transparent p-8 flex flex-col space-y-4">
+        
+        {/* FİLTRE VE ARAMA ÇUBUĞU */}
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-gray-200 border border-gray-300 p-4 rounded-2xl shadow-sm">
+          <div className="relative flex-1 max-w-md">
+            <svg className="w-4 h-4 text-gray-1000 absolute left-3.5 top-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Ürün adı veya markaya göre canlı ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-300 border border-gray-300 rounded-xl text-xs text-gray-900 outline-none focus:border-gray-1000 focus:ring-1 focus:ring-gray-300 transition-all"
+            />
+          </div>
+          <div className="flex items-center gap-4 text-xs font-bold text-gray-600 px-2">
+            <span>Toplam Çeşit: <span className="text-gray-900">{products.length}</span> Kalem</span>
+          </div>
+        </div>
+
+        {/* STOK TABLOSU */}
+        <div className="flex-1 border border-gray-300 bg-gray-200 rounded-2xl overflow-hidden flex flex-col shadow-sm">
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-1000"></div>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-1000 p-6 text-center gap-2">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              <p className="text-xs">Aradığınız kriterlere uygun bir ürün envanterde bulunamadı.</p>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto scrollbar-thin">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-300 text-gray-600 text-[10px] uppercase font-black tracking-wider border-b border-gray-300 sticky top-0 z-10">
+                    <th className="p-4 pl-6">Mal Hizmet / Ürün Tanımı</th>
+                    <th className="p-4 text-right">Son Alım Fiyatı</th>
+                    <th className="p-4 text-center">Kritik Limit</th>
+                    <th className="p-4 text-center w-36">Mevcut Stok</th>
+                    <th className="p-4 text-center">Durum</th>
+                    <th className="p-4 text-center pr-6">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 text-gray-700 text-xs">
+                  {filteredProducts.map((prod) => {
+                    const isCritical = prod.stok_miktari <= prod.kritik_esik;
+                    return (
+                      <tr key={prod.id} className="hover:bg-gray-300 transition-all duration-300 group">
+                        <td className="p-4 pl-6 transition-all duration-300 max-w-md">
+                          {editingProductId === prod.id ? (
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="w-full px-2 py-1 text-xs border border-gray-400 rounded outline-none focus:border-gray-900 bg-white"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleNameEditSave(prod.id);
+                                  if (e.key === 'Escape') handleNameEditCancel();
+                                }}
+                              />
+                              <button onClick={() => handleNameEditSave(prod.id)} className="text-emerald-600 hover:text-emerald-800" title="Kaydet">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              </button>
+                              <button onClick={handleNameEditCancel} className="text-red-500 hover:text-red-700" title="İptal">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between group/name">
+                              <span className="font-bold text-gray-900 truncate" title={prod.urun_adi}>{prod.urun_adi}</span>
+                              <button onClick={() => handleNameEditStart(prod)} className="opacity-0 group-hover/name:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity ml-2 shrink-0" title="İsmi Düzenle">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4 text-right font-mono font-medium text-gray-600">
+                          {prod.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL
+                        </td>
+                        <td className="p-4 text-center font-semibold text-gray-1000">
+                          {prod.kritik_esik}
+                        </td>
+                        <td className="p-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button 
+                              onClick={() => handleStockUpdate(prod.id, -1)}
+                              className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
+                              title="1 Adet Düşür"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
+                            </button>
+                            <span className={`inline-block min-w-[2.5rem] px-2 py-1 rounded-lg font-black font-mono text-[13px] ${isCritical ? 'text-amber-600 bg-amber-50 border border-amber-200' : 'text-gray-900 bg-gray-300 border border-gray-400'}`}>
+                              {prod.stok_miktari}
+                            </span>
+                            <button 
+                              onClick={() => handleStockUpdate(prod.id, 1)}
+                              className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
+                              title="1 Adet Artır"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                            </button>
+                          </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          {isCritical ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 rounded border border-amber-200 animate-pulse">
+                              <span className="w-1 h-1 bg-amber-500 rounded-full"></span> Kritik Seviye
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-700 bg-gray-400 rounded border border-gray-300">
+                              <span className="w-1 h-1 bg-stone-400 rounded-full"></span> Stok Yeterli
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4 text-center pr-6">
+                          <button
+                            onClick={() => triggerDeleteModal(prod)}
+                            className="px-2.5 py-1 text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 rounded-lg hover:bg-red-500 hover:text-white transition-all cursor-pointer"
+                          >
+                            Ürünü Sil
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* ÜRÜNE ÖZGÜ MODERN UI ONAY KARTI (MODAL) */}
+      {isModalOpen && productToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-gray-200 border border-gray-300 max-w-md w-full p-6 rounded-2xl shadow-xl relative overflow-hidden animate-[scaleUp_0.25s_ease-out]">
+            
+            <div className="w-12 h-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center text-red-500 text-xl mb-4">
+              ⚠️
+            </div>
+
+            <h3 className="text-base font-bold text-gray-900">Ürünü Envanterden Kaldır?</h3>
+            <p className="text-xs text-gray-600 mt-2 leading-relaxed">
+              <span className="text-red-500 font-semibold">{productToDelete.urun_adi}</span> isimli kalemi depo envanterinden silmek üzeresiniz. 
+              Bu işlem dükkanın **geçmiş ciro verilerini etkilemeyecektir.** Eski fatura kayıtlarındaki bu ürüne ait satırlar "Silinmiş Ürün" adıyla güvenle arşivlenecektir.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3 border-t border-gray-200 pt-4">
+              <button
+                onClick={() => { setIsModalOpen(false); setProductToDelete(null); }}
+                disabled={deleteLoading}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:text-gray-800 bg-gray-400 hover:bg-gray-1000 transition-all duration-300 cursor-pointer"
+              >
+                İptal Et
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deleteLoading}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-red-500 hover:bg-red-600 shadow-md transition-all cursor-pointer flex items-center gap-2"
+              >
+                {deleteLoading ? (
+                  <>
+                    <div className="animate-spin h-3.5 w-3.5 border-b-2 border-white rounded-full"></div>
+                    <span>Envanter Güncelleniyor...</span>
+                  </>
+                ) : (
+                  <span>Evet, Envanterden Sil</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleUp { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 2px; }
+      `}</style>
+    </Layout>
+  );
+}
