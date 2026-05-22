@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import myLogo from '../public/logo.png';
+
 
 export default function Layout({ children, title, setAuth }) {
   const navigate = useNavigate();
@@ -62,7 +62,7 @@ export default function Layout({ children, title, setAuth }) {
         <div className="p-6 flex items-center justify-between lg:justify-start gap-4 border-b border-gray-800">
           <div className="flex items-center gap-4">
             <div className="p-2 bg-gray-800 rounded-xl shadow-inner border border-gray-700">
-              <img className="h-8 w-auto brightness-200" src="/public/logo.png" alt="Yoltan Gida" />
+              <img className="h-8 w-auto brightness-200" src="/logo.png" alt="Yoltan Gida" />
             </div>
             <div>
               <h1 className="text-lg font-black tracking-widest text-white">YOLTAN</h1>
