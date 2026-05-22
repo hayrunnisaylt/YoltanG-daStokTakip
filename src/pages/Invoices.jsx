@@ -108,7 +108,7 @@ export default function Invoices({ setAuth }) {
 
   return (
     <Layout title="Çift Yönlü Fatura Giriş Otomasyonu" setAuth={setAuth}>
-      <main className="flex-1 overflow-auto bg-transparent p-8 space-y-6">
+      <main className="flex-1 overflow-auto bg-transparent p-4 sm:p-8 space-y-6">
         
         {/* İKİYE BÖLÜNMÜŞ YÜKLEME ALANI */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-[slideUp_0.4s_ease-out]">
@@ -190,8 +190,8 @@ export default function Invoices({ setAuth }) {
               </div>
             </div>
 
-            <div className="border border-gray-300 rounded-xl overflow-hidden bg-gray-300">
-              <table className="w-full text-left border-collapse table-auto text-xs">
+            <div className="border border-gray-300 rounded-xl overflow-x-auto bg-gray-300">
+              <table className="w-full min-w-[700px] text-left border-collapse table-auto text-xs">
                 <thead>
                   <tr className="bg-gray-400 text-gray-600 text-[10px] uppercase font-bold border-b border-gray-300">
                     <th className="p-4 w-1/3">Faturada Okunan Ad</th>

@@ -65,7 +65,7 @@ export default function Dashboard({ setAuth }) {
 
   return (
     <Layout title="Panel Kontrolü" setAuth={setAuth}>
-      <main className="flex-1 overflow-auto bg-transparent p-8 space-y-6">
+      <main className="flex-1 overflow-auto bg-transparent p-4 sm:p-8 space-y-6">
         
         {/* ÖZET KARTLARI */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-[slideUp_0.4s_ease-out]">
@@ -92,8 +92,8 @@ export default function Dashboard({ setAuth }) {
           <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
             <span className="w-1 h-4 bg-gray-1000 rounded-full"></span> Son İşlenen Evrak Sicili
           </h3>
-          <div className="border border-gray-300 rounded-xl overflow-hidden bg-gray-300">
-            <table className="w-full text-left border-collapse">
+          <div className="border border-gray-300 rounded-xl overflow-x-auto bg-gray-300">
+            <table className="w-full min-w-[600px] text-left border-collapse">
               <thead>
                 <tr className="bg-gray-400 text-gray-600 text-[10px] uppercase font-bold border-b border-gray-300">
                   <th className="p-4">Toptancı / Müşteri Firma</th>

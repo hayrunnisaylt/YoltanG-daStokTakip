@@ -84,10 +84,10 @@ export default function GelenInvoices({ setAuth }) {
 
   return (
     <Layout title="Gelen Alım Faturaları Arşivi" setAuth={setAuth}>
-      <main className="flex-1 overflow-hidden bg-transparent p-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <main className="flex-1 overflow-auto xl:overflow-hidden bg-transparent p-4 sm:p-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
         
         {/* TOPTANCI LİSTESİ */}
-        <div className="xl:col-span-1 flex flex-col h-full overflow-hidden">
+        <div className="xl:col-span-1 flex flex-col h-[50vh] xl:h-full overflow-hidden">
           <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Tedarikçi Firmalar ({toptancilar.length})</h3>
           {globalLoading ? (
             <div className="flex-1 flex items-center justify-center bg-gray-200 border border-gray-300 rounded-2xl">
@@ -117,7 +117,7 @@ export default function GelenInvoices({ setAuth }) {
         </div>
 
         {/* SİLME VE GEÇMİŞ KALEM GÖRÜNTÜLEME ALANI */}
-        <div className="xl:col-span-2 bg-gray-200 border border-gray-300 rounded-2xl p-6 flex flex-col overflow-hidden h-[78vh] shadow-sm">
+        <div className="xl:col-span-2 bg-gray-200 border border-gray-300 rounded-2xl p-4 sm:p-6 flex flex-col overflow-hidden min-h-[500px] xl:h-[78vh] shadow-sm">
           {selectedToptanci ? (
             <div className="flex flex-col h-full space-y-4 overflow-hidden animate-[slideUp_0.2s_ease-out]">
               <div className="border-b border-gray-200 pb-3.5 flex justify-between items-end">
@@ -154,28 +154,30 @@ export default function GelenInvoices({ setAuth }) {
                         </span>
                       </div>
 
-                      <table className="w-full text-left border-collapse text-[11px]">
-                        <thead>
-                          <tr className="text-gray-600 border-b border-gray-300 uppercase font-bold text-[10px]">
-                            <th className="pb-2">İşlenen Stok Kartı</th>
-                            <th className="pb-2 text-center">Giren Miktar</th>
-                            <th className="pb-2 text-right">Birim Fiyat</th>
-                            <th className="pb-2 text-right">Toplam</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-300 text-gray-700">
-                          {inv.kalemler?.map((item, itemIdx) => (
-                            <tr key={itemIdx} className="hover:bg-gray-200">
-                              <td className="py-2 font-medium text-gray-900">
-                                {item.db_urun_adi || item.urun_adi}
-                              </td>
-                              <td className="py-2 text-center text-gray-700 font-black">+{item.miktar}</td>
-                              <td className="py-2 text-right text-gray-600">₺{item.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
-                              <td className="py-2 text-right font-bold text-gray-900">₺{item.toplam.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                      <div className="overflow-x-auto mt-3">
+                        <table className="w-full min-w-[400px] text-left border-collapse text-[11px]">
+                          <thead>
+                            <tr className="text-gray-600 border-b border-gray-300 uppercase font-bold text-[10px]">
+                              <th className="pb-2">İşlenen Stok Kartı</th>
+                              <th className="pb-2 text-center">Giren Miktar</th>
+                              <th className="pb-2 text-right">Birim Fiyat</th>
+                              <th className="pb-2 text-right">Toplam</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-gray-300 text-gray-700">
+                            {inv.kalemler?.map((item, itemIdx) => (
+                              <tr key={itemIdx} className="hover:bg-gray-200">
+                                <td className="py-2 font-medium text-gray-900">
+                                  {item.db_urun_adi || item.urun_adi}
+                                </td>
+                                <td className="py-2 text-center text-gray-700 font-black">+{item.miktar}</td>
+                                <td className="py-2 text-right text-gray-600">₺{item.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                                <td className="py-2 text-right font-bold text-gray-900">₺{item.toplam.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   ))}
                 </div>

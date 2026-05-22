@@ -120,7 +120,7 @@ export default function Stocks({ setAuth }) {
 
   return (
     <Layout title="Stok Depo Envanteri" setAuth={setAuth}>
-      <main className="flex-1 overflow-hidden bg-transparent p-8 flex flex-col space-y-4">
+      <main className="flex-1 overflow-hidden bg-transparent p-4 sm:p-8 flex flex-col space-y-4">
         
         {/* FİLTRE VE ARAMA ÇUBUĞU */}
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-gray-200 border border-gray-300 p-4 rounded-2xl shadow-sm">
@@ -155,8 +155,8 @@ export default function Stocks({ setAuth }) {
               <p className="text-xs">Aradığınız kriterlere uygun bir ürün envanterde bulunamadı.</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto scrollbar-thin">
-              <table className="w-full text-left border-collapse">
+            <div className="flex-1 overflow-auto scrollbar-thin">
+              <table className="w-full min-w-[800px] text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-300 text-gray-600 text-[10px] uppercase font-black tracking-wider border-b border-gray-300 sticky top-0 z-10">
                     <th className="p-4 pl-6">Mal Hizmet / Ürün Tanımı</th>
