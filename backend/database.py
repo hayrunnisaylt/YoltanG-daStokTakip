@@ -1,4 +1,6 @@
+import os
 from motor.motor_asyncio import AsyncIOMotorClient
+
 
 # MongoDB Atlas'tan kopyaladığınız adresi buraya yapıştırın.
 # <username> ve <password> alanlarını kendi belirlediğiniz bilgilerle doldurun.
