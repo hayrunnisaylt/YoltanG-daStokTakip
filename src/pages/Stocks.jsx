@@ -156,23 +156,115 @@ export default function Stocks({ setAuth }) {
             </div>
           ) : (
             <div className="flex-1 overflow-auto scrollbar-thin">
-              <table className="w-full min-w-[800px] text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-300 text-gray-600 text-[10px] uppercase font-black tracking-wider border-b border-gray-300 sticky top-0 z-10">
-                    <th className="p-4 pl-6">Mal Hizmet / Ürün Tanımı</th>
-                    <th className="p-4 text-right">Son Alım Fiyatı</th>
-                    <th className="p-4 text-center">Kritik Limit</th>
-                    <th className="p-4 text-center w-36">Mevcut Stok</th>
-                    <th className="p-4 text-center">Durum</th>
-                    <th className="p-4 text-center pr-6">İşlem</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 text-gray-700 text-xs">
-                  {filteredProducts.map((prod) => {
-                    const isCritical = prod.stok_miktari <= prod.kritik_esik;
-                    return (
-                      <tr key={prod.id} className="hover:bg-gray-300 transition-all duration-300 group">
-                        <td className="p-4 pl-6 transition-all duration-300 max-w-md">
+              {/* MASAÜSTÜ TABLO GÖRÜNÜMÜ */}
+              <div className="hidden md:block">
+                <table className="w-full min-w-[800px] text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-300 text-gray-600 text-[10px] uppercase font-black tracking-wider border-b border-gray-300 sticky top-0 z-10">
+                      <th className="p-4 pl-6">Mal Hizmet / Ürün Tanımı</th>
+                      <th className="p-4 text-right">Son Alım Fiyatı</th>
+                      <th className="p-4 text-center">Kritik Limit</th>
+                      <th className="p-4 text-center w-36">Mevcut Stok</th>
+                      <th className="p-4 text-center">Durum</th>
+                      <th className="p-4 text-center pr-6">İşlem</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 text-gray-700 text-xs">
+                    {filteredProducts.map((prod) => {
+                      const isCritical = prod.stok_miktari <= prod.kritik_esik;
+                      return (
+                        <tr key={prod.id} className="hover:bg-gray-300 transition-all duration-300 group">
+                          <td className="p-4 pl-6 transition-all duration-300 max-w-md">
+                            {editingProductId === prod.id ? (
+                              <div className="flex items-center gap-2">
+                                <input 
+                                  type="text"
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  className="w-full px-2 py-1 text-xs border border-gray-400 rounded outline-none focus:border-gray-900 bg-white"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleNameEditSave(prod.id);
+                                    if (e.key === 'Escape') handleNameEditCancel();
+                                  }}
+                                />
+                                <button onClick={() => handleNameEditSave(prod.id)} className="text-emerald-600 hover:text-emerald-800" title="Kaydet">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                </button>
+                                <button onClick={handleNameEditCancel} className="text-red-500 hover:text-red-700" title="İptal">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between group/name">
+                                <span className="font-bold text-gray-900 truncate" title={prod.urun_adi}>{prod.urun_adi}</span>
+                                <button onClick={() => handleNameEditStart(prod)} className="opacity-0 group-hover/name:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity ml-2 shrink-0" title="İsmi Düzenle">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-4 text-right font-mono font-medium text-gray-600">
+                            {prod.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL
+                          </td>
+                          <td className="p-4 text-center font-semibold text-gray-1000">
+                            {prod.kritik_esik}
+                          </td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button 
+                                onClick={() => handleStockUpdate(prod.id, -1)}
+                                className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
+                                title="1 Adet Düşür"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
+                              </button>
+                              <span className={`inline-block min-w-[2.5rem] px-2 py-1 rounded-lg font-black font-mono text-[13px] ${isCritical ? 'text-amber-600 bg-amber-50 border border-amber-200' : 'text-gray-900 bg-gray-300 border border-gray-400'}`}>
+                                {prod.stok_miktari}
+                              </span>
+                              <button 
+                                onClick={() => handleStockUpdate(prod.id, 1)}
+                                className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
+                                title="1 Adet Artır"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-4 text-center">
+                            {isCritical ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 rounded border border-amber-200 animate-pulse">
+                                <span className="w-1 h-1 bg-amber-500 rounded-full"></span> Kritik Seviye
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-700 bg-gray-400 rounded border border-gray-300">
+                                <span className="w-1 h-1 bg-stone-400 rounded-full"></span> Stok Yeterli
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-center pr-6">
+                            <button
+                              onClick={() => triggerDeleteModal(prod)}
+                              className="px-2.5 py-1 text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 rounded-lg hover:bg-red-500 hover:text-white transition-all cursor-pointer"
+                            >
+                              Ürünü Sil
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* MOBİL KART GÖRÜNÜMÜ */}
+              <div className="md:hidden flex flex-col divide-y divide-gray-300">
+                {filteredProducts.map((prod) => {
+                  const isCritical = prod.stok_miktari <= prod.kritik_esik;
+                  return (
+                    <div key={prod.id} className="p-4 flex flex-col gap-4 bg-gray-200 hover:bg-gray-300 transition-colors">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1">
                           {editingProductId === prod.id ? (
                             <div className="flex items-center gap-2">
                               <input 
@@ -186,73 +278,73 @@ export default function Stocks({ setAuth }) {
                                   if (e.key === 'Escape') handleNameEditCancel();
                                 }}
                               />
-                              <button onClick={() => handleNameEditSave(prod.id)} className="text-emerald-600 hover:text-emerald-800" title="Kaydet">
+                              <button onClick={() => handleNameEditSave(prod.id)} className="text-emerald-600 p-1" title="Kaydet">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                               </button>
-                              <button onClick={handleNameEditCancel} className="text-red-500 hover:text-red-700" title="İptal">
+                              <button onClick={handleNameEditCancel} className="text-red-500 p-1" title="İptal">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center justify-between group/name">
-                              <span className="font-bold text-gray-900 truncate" title={prod.urun_adi}>{prod.urun_adi}</span>
-                              <button onClick={() => handleNameEditStart(prod)} className="opacity-0 group-hover/name:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity ml-2 shrink-0" title="İsmi Düzenle">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-black text-gray-900">{prod.urun_adi}</h4>
+                              <button onClick={() => handleNameEditStart(prod)} className="text-gray-500 hover:text-blue-600 p-1 shrink-0" title="İsmi Düzenle">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                               </button>
                             </div>
                           )}
-                        </td>
-                        <td className="p-4 text-right font-mono font-medium text-gray-600">
-                          {prod.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL
-                        </td>
-                        <td className="p-4 text-center font-semibold text-gray-1000">
-                          {prod.kritik_esik}
-                        </td>
-                        <td className="p-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                        </div>
+                        {isCritical ? (
+                          <span className="shrink-0 inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 rounded border border-amber-200 animate-pulse">
+                            Kritik
+                          </span>
+                        ) : (
+                          <span className="shrink-0 inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-700 bg-gray-400 rounded border border-gray-300">
+                            Yeterli
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex justify-between items-center bg-gray-300 rounded-lg p-3 border border-gray-400">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-gray-600 uppercase font-bold">Birim Fiyat</span>
+                          <span className="text-sm font-mono font-black text-gray-800">{prod.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>
+                        </div>
+                        
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[10px] text-gray-600 uppercase font-bold">Stok Ayarı</span>
+                          <div className="flex items-center justify-center gap-2">
                             <button 
                               onClick={() => handleStockUpdate(prod.id, -1)}
-                              className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
-                              title="1 Adet Düşür"
+                              className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-lg border border-gray-400 transition-colors shadow-sm cursor-pointer"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
                             </button>
-                            <span className={`inline-block min-w-[2.5rem] px-2 py-1 rounded-lg font-black font-mono text-[13px] ${isCritical ? 'text-amber-600 bg-amber-50 border border-amber-200' : 'text-gray-900 bg-gray-300 border border-gray-400'}`}>
+                            <span className={`inline-block min-w-[3rem] text-center px-2 py-1 rounded-lg font-black font-mono text-base ${isCritical ? 'text-amber-600 bg-amber-50 border border-amber-300' : 'text-gray-900 bg-gray-100 border border-gray-400'}`}>
                               {prod.stok_miktari}
                             </span>
                             <button 
                               onClick={() => handleStockUpdate(prod.id, 1)}
-                              className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
-                              title="1 Adet Artır"
+                              className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-600 rounded-lg border border-gray-400 transition-colors shadow-sm cursor-pointer"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                             </button>
                           </div>
-                        </td>
-                        <td className="p-4 text-center">
-                          {isCritical ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 rounded border border-amber-200 animate-pulse">
-                              <span className="w-1 h-1 bg-amber-500 rounded-full"></span> Kritik Seviye
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-700 bg-gray-400 rounded border border-gray-300">
-                              <span className="w-1 h-1 bg-stone-400 rounded-full"></span> Stok Yeterli
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-4 text-center pr-6">
-                          <button
-                            onClick={() => triggerDeleteModal(prod)}
-                            className="px-2.5 py-1 text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 rounded-lg hover:bg-red-500 hover:text-white transition-all cursor-pointer"
-                          >
-                            Ürünü Sil
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end mt-1">
+                        <button
+                          onClick={() => triggerDeleteModal(prod)}
+                          className="px-4 py-1.5 text-xs font-bold bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-500 hover:text-white transition-all cursor-pointer shadow-sm"
+                        >
+                          Ürünü Sil
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

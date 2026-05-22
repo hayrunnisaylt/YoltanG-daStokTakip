@@ -92,42 +92,80 @@ export default function Dashboard({ setAuth }) {
           <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
             <span className="w-1 h-4 bg-gray-1000 rounded-full"></span> Son İşlenen Evrak Sicili
           </h3>
-          <div className="border border-gray-300 rounded-xl overflow-x-auto bg-gray-300">
-            <table className="w-full min-w-[600px] text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-400 text-gray-600 text-[10px] uppercase font-bold border-b border-gray-300">
-                  <th className="p-4">Toptancı / Müşteri Firma</th>
-                  <th className="p-4">Tip</th>
-                  <th className="p-4">Fatura No</th>
-                  <th className="p-4">Tarih</th>
-                  <th className="p-4 text-right">Toplam Tutar</th>
-                  <th className="p-4 text-center">İşlem</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-300 text-gray-700 text-xs">
-                {stats.recent_invoices.map((inv, idx) => (
-                  <tr key={idx} className="hover:bg-gray-400 hover:shadow-md transition-all duration-300">
-                    <td className="p-4 font-semibold text-gray-900 max-w-xs truncate">{inv.musteri_unvani}</td>
-                    <td className="p-4">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${inv.invoice_type === 'gelen' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
-                        {inv.invoice_type === 'gelen' ? 'Alım' : 'Satış'}
-                      </span>
-                    </td>
-                    <td className="p-4 text-gray-600 font-mono text-[11px]">{inv.fatura_no}</td>
-                    <td className="p-4 text-gray-1000">{inv.fatura_tarihi}</td>
-                    <td className="p-4 text-right font-bold text-gray-800">₺{inv.toplam_tutar.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
-                    <td className="p-4 text-center">
+          <div className="border border-gray-300 rounded-xl overflow-hidden bg-gray-300">
+            {/* MASAÜSTÜ TABLO GÖRÜNÜMÜ */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full min-w-[600px] text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-400 text-gray-600 text-[10px] uppercase font-bold border-b border-gray-300">
+                    <th className="p-4">Toptancı / Müşteri Firma</th>
+                    <th className="p-4">Tip</th>
+                    <th className="p-4">Fatura No</th>
+                    <th className="p-4">Tarih</th>
+                    <th className="p-4 text-right">Toplam Tutar</th>
+                    <th className="p-4 text-center">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-300 text-gray-700 text-xs">
+                  {stats.recent_invoices.map((inv, idx) => (
+                    <tr key={idx} className="hover:bg-gray-400 hover:shadow-md transition-all duration-300">
+                      <td className="p-4 font-semibold text-gray-900 max-w-xs truncate">{inv.musteri_unvani}</td>
+                      <td className="p-4">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${inv.invoice_type === 'gelen' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
+                          {inv.invoice_type === 'gelen' ? 'Alım' : 'Satış'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-gray-600 font-mono text-[11px]">{inv.fatura_no}</td>
+                      <td className="p-4 text-gray-1000">{inv.fatura_tarihi}</td>
+                      <td className="p-4 text-right font-bold text-gray-800">₺{inv.toplam_tutar.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                      <td className="p-4 text-center">
+                        <button
+                          onClick={() => triggerDeleteModal(inv.fatura_no)}
+                          className="px-2.5 py-1 text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 rounded-lg hover:bg-red-500 hover:text-white transition-all cursor-pointer"
+                        >
+                          Faturayı Sil
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MOBİL KART GÖRÜNÜMÜ */}
+            <div className="md:hidden flex flex-col divide-y divide-gray-300">
+              {stats.recent_invoices.map((inv, idx) => (
+                <div key={idx} className="p-4 flex flex-col gap-3 bg-gray-200 hover:bg-gray-300 transition-colors">
+                  <div className="flex justify-between items-start gap-2">
+                    <h4 className="text-xs font-black text-gray-900 leading-tight">{inv.musteri_unvani}</h4>
+                    <span className={`shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-md ${inv.invoice_type === 'gelen' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>
+                      {inv.invoice_type === 'gelen' ? 'Alım' : 'Satış'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-end text-[11px]">
+                    <div className="flex flex-col gap-0.5 text-gray-600">
+                      <span className="font-mono font-medium">No: {inv.fatura_no}</span>
+                      <span>Tarih: {inv.fatura_tarihi}</span>
+                    </div>
+                    <div className="text-right flex flex-col gap-1 items-end">
+                      <span className="text-sm font-black text-gray-900">₺{inv.toplam_tutar.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
                       <button
                         onClick={() => triggerDeleteModal(inv.fatura_no)}
-                        className="px-2.5 py-1 text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 rounded-lg hover:bg-red-500 hover:text-white transition-all cursor-pointer"
+                        className="px-3 py-1 mt-1 text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 rounded-lg hover:bg-red-500 hover:text-white transition-all cursor-pointer"
                       >
-                        Faturayı Sil
+                        Sil
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {stats.recent_invoices.length === 0 && (
+                <div className="p-6 text-center text-xs text-gray-500 font-medium">
+                  Henüz işlenmiş evrak yok.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </main>

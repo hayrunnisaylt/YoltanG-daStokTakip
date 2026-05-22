@@ -190,48 +190,96 @@ export default function Invoices({ setAuth }) {
               </div>
             </div>
 
-            <div className="border border-gray-300 rounded-xl overflow-x-auto bg-gray-300">
-              <table className="w-full min-w-[700px] text-left border-collapse table-auto text-xs">
-                <thead>
-                  <tr className="bg-gray-400 text-gray-600 text-[10px] uppercase font-bold border-b border-gray-300">
-                    <th className="p-4 w-1/3">Faturada Okunan Ad</th>
-                    <th className="p-4 w-1/3 text-gray-800">Depoda İşlenecek Kart (A-Z Sıralı)</th>
-                    <th className="p-4 text-center">Miktar</th>
-                    <th className="p-4 text-right">Birim Fiyat</th>
-                    <th className="p-4 text-right">Toplam</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-300 text-gray-700">
-                  {result.kalemler.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-gray-400 hover:shadow-md transition-all duration-300">
-                      <td className="p-4 font-semibold text-gray-700 max-w-xs truncate">{item.urun_adi}</td>
-                      
-                      <td className="p-4">
-                        <select
-                          value={item.db_urun_adi || item.urun_adi}
-                          onChange={(e) => handleSelectProductChange(idx, e.target.value)}
-                          className="w-full bg-gray-200 border border-gray-400 rounded-xl p-2 text-xs text-gray-900 font-bold outline-none focus:border-gray-1000 transition-all duration-300 cursor-pointer"
-                        >
-                          <option value={item.urun_adi}>{item.urun_adi} (Yeni Kart Aç)</option>
-                          {dbProducts.map(prod => (
-                            <option key={prod.id} value={prod.urun_adi}>
-                              {prod.urun_adi}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
+            <div className="border border-gray-300 rounded-xl overflow-hidden bg-gray-300">
+              {/* MASAÜSTÜ TABLO GÖRÜNÜMÜ */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full min-w-[700px] text-left border-collapse table-auto text-xs">
+                  <thead>
+                    <tr className="bg-gray-400 text-gray-600 text-[10px] uppercase font-bold border-b border-gray-300">
+                      <th className="p-4 w-1/3">Faturada Okunan Ad</th>
+                      <th className="p-4 w-1/3 text-gray-800">Depoda İşlenecek Kart (A-Z Sıralı)</th>
+                      <th className="p-4 text-center">Miktar</th>
+                      <th className="p-4 text-right">Birim Fiyat</th>
+                      <th className="p-4 text-right">Toplam</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-300 text-gray-700">
+                    {result.kalemler.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-gray-400 hover:shadow-md transition-all duration-300">
+                        <td className="p-4 font-semibold text-gray-700 max-w-xs truncate">{item.urun_adi}</td>
+                        
+                        <td className="p-4">
+                          <select
+                            value={item.db_urun_adi || item.urun_adi}
+                            onChange={(e) => handleSelectProductChange(idx, e.target.value)}
+                            className="w-full bg-gray-200 border border-gray-400 rounded-xl p-2 text-xs text-gray-900 font-bold outline-none focus:border-gray-1000 transition-all duration-300 cursor-pointer"
+                          >
+                            <option value={item.urun_adi}>{item.urun_adi} (Yeni Kart Aç)</option>
+                            {dbProducts.map(prod => (
+                              <option key={prod.id} value={prod.urun_adi}>
+                                {prod.urun_adi}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
 
-                      <td className="p-4 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-md font-bold text-[11px] ${result.portal_type === 'gelen' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-red-50 text-red-500 border border-red-100'}`}>
+                        <td className="p-4 text-center">
+                          <span className={`px-2.5 py-0.5 rounded-md font-bold text-[11px] ${result.portal_type === 'gelen' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-red-50 text-red-500 border border-red-100'}`}>
+                            {result.portal_type === 'gelen' ? '+' : '-'}{item.miktar}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right text-gray-600">{item.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</td>
+                        <td className="p-4 text-right font-bold text-gray-900">{item.toplam.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* MOBİL KART GÖRÜNÜMÜ */}
+              <div className="md:hidden flex flex-col divide-y divide-gray-300">
+                {result.kalemler.map((item, idx) => (
+                  <div key={idx} className="p-4 flex flex-col gap-3 bg-gray-200">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase">Faturada Okunan Ad:</span>
+                      <span className="text-xs font-bold text-gray-900 leading-tight">{item.urun_adi}</span>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] text-gray-800 font-bold uppercase">Depoda İşlenecek Kart:</span>
+                      <select
+                        value={item.db_urun_adi || item.urun_adi}
+                        onChange={(e) => handleSelectProductChange(idx, e.target.value)}
+                        className="w-full bg-gray-100 border border-gray-400 rounded-xl p-2.5 text-xs text-gray-900 font-bold outline-none focus:border-gray-1000 transition-all duration-300 cursor-pointer shadow-sm"
+                      >
+                        <option value={item.urun_adi}>{item.urun_adi} (Yeni Kart Aç)</option>
+                        {dbProducts.map(prod => (
+                          <option key={prod.id} value={prod.urun_adi}>
+                            {prod.urun_adi}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div className="flex justify-between items-center mt-2 border-t border-gray-300 pt-3">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-500 uppercase font-bold">Miktar</span>
+                        <span className={`px-2 py-0.5 rounded-md font-bold text-xs mt-1 inline-block text-center w-fit ${result.portal_type === 'gelen' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-red-50 text-red-500 border border-red-100'}`}>
                           {result.portal_type === 'gelen' ? '+' : '-'}{item.miktar}
                         </span>
-                      </td>
-                      <td className="p-4 text-right text-gray-600">{item.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</td>
-                      <td className="p-4 text-right font-bold text-gray-900">{item.toplam.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-[10px] text-gray-500 uppercase font-bold">Birim Fiyat</span>
+                        <span className="text-xs font-medium text-gray-700 mt-1">{item.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-gray-500 uppercase font-bold">Toplam</span>
+                        <span className="text-xs font-black text-gray-900 mt-1">{item.toplam.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="flex justify-end pt-2">

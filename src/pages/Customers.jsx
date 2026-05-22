@@ -165,27 +165,52 @@ export default function Customers({ setAuth }) {
                         </span>
                       </div>
 
-                      <div className="overflow-x-auto mt-3">
-                        <table className="w-full min-w-[400px] text-left border-collapse text-[11px]">
-                          <thead>
-                            <tr className="text-gray-600 border-b border-gray-300 uppercase font-bold text-[10px]">
-                              <th className="pb-2">Satılan Ürün / Mal Hizmet</th>
-                              <th className="pb-2 text-center">Miktar</th>
-                              <th className="pb-2 text-right">Birim Fiyat</th>
-                              <th className="pb-2 text-right">Toplam</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-300 text-gray-700">
-                            {inv.kalemler?.map((item, itemIdx) => (
-                              <tr key={itemIdx} className="hover:bg-gray-200">
-                                <td className="py-2 font-medium text-gray-900">{item.urun_adi}</td>
-                                <td className="py-2 text-center text-gray-800 font-black">-{item.miktar}</td>
-                                <td className="py-2 text-right text-gray-600">₺{item.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
-                                <td className="py-2 text-right font-bold text-gray-900">₺{item.toplam.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                      <div className="mt-3">
+                        {/* Masaüstü Tablo Görünümü */}
+                        <div className="hidden md:block overflow-x-auto">
+                          <table className="w-full min-w-[400px] text-left border-collapse text-[11px]">
+                            <thead>
+                              <tr className="text-gray-600 border-b border-gray-300 uppercase font-bold text-[10px]">
+                                <th className="pb-2">Satılan Ürün / Mal Hizmet</th>
+                                <th className="pb-2 text-center">Miktar</th>
+                                <th className="pb-2 text-right">Birim Fiyat</th>
+                                <th className="pb-2 text-right">Toplam</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-300 text-gray-700">
+                              {inv.kalemler?.map((item, itemIdx) => (
+                                <tr key={itemIdx} className="hover:bg-gray-200">
+                                  <td className="py-2 font-medium text-gray-900">{item.urun_adi}</td>
+                                  <td className="py-2 text-center text-gray-800 font-black">-{item.miktar}</td>
+                                  <td className="py-2 text-right text-gray-600">₺{item.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                                  <td className="py-2 text-right font-bold text-gray-900">₺{item.toplam.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {/* Mobil Kart Görünümü */}
+                        <div className="md:hidden flex flex-col space-y-2">
+                          {inv.kalemler?.map((item, itemIdx) => (
+                            <div key={itemIdx} className="bg-gray-200 border border-gray-300 p-3 rounded-lg flex flex-col gap-2">
+                              <span className="font-bold text-gray-900 text-xs">{item.urun_adi}</span>
+                              <div className="flex justify-between items-end">
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] text-gray-500 uppercase font-bold">Miktar</span>
+                                  <span className="text-xs font-black text-red-600">-{item.miktar}</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                  <span className="text-[10px] text-gray-500 uppercase font-bold">Birim Fiyat</span>
+                                  <span className="text-xs font-medium text-gray-700">₺{item.birim_fiyat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                  <span className="text-[10px] text-gray-500 uppercase font-bold">Toplam</span>
+                                  <span className="text-xs font-black text-gray-900">₺{item.toplam.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   ))}
