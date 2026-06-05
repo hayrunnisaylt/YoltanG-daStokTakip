@@ -8,10 +8,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import users_collection, invoices_collection, customers_collection, products_collection
 from bson import ObjectId
 import pdfplumber 
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+# 1. LIFESPAN (UYGULAMA YAŞAM DÖNGÜSÜ) TANIMLAMASI
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- YUKARISI STARTUP (BAŞLANGIÇ) ---
+    print("Sistem başlatılıyor...")
+    
+    yield # Uygulamanın çalıştığı an
+    
+    # --- AŞAĞISI SHUTDOWN (KAPANIŞ) ---
+    print("Sistem kapanıyor...")
 
-# Gelişmiş ve Esnek CORS Ayarları
+# 2. FASTAPI UYGULAMASINI BAŞLATMA (Lifespan ile)
+app = FastAPI(lifespan=lifespan)
+
+# 3. Gelişmiş ve Esnek CORS Ayarları (Mutlaka app tanımlandıktan sonra olmalı)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,43 +33,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- MODELLER ---
 class LoginRequest(BaseModel):
     username: str
     password: str
 
-@app.on_event("startup")
-async def startup_event():
-    existing_user = await users_collection.find_one({"username": "admin"})
-    if not existing_user:
-        await users_collection.insert_one({
-            "username": "admin",
-            "password": "12345",
-            "name": "Ömer Faruk",
-            "role": "admin"
-        })
+class FinalInvoiceSaveRequest(BaseModel):
+    fatura_no: str
+    fatura_tarihi: str
+    musteri_unvani: str
+    toplam_tutar: float
+    invoice_type: str
+    kalemler: list 
 
-@app.post("/api/login")
-async def login(request: LoginRequest):
-    user = await users_collection.find_one({"username": request.username})
-    if user and user["password"] == request.password:
-        return {"message": "Giriş başarılı", "user": {"name": user["name"], "role": user["role"]}}
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Hatalı kullanıcı adı veya şifre")
+class StockUpdateRequest(BaseModel):
+    amount: float
 
+class ProductNameUpdateRequest(BaseModel):
+    new_name: str
+
+class ProductAddRequest(BaseModel):
+    urun_adi: str
+    stok_miktari: float = 0.0
+    birim_fiyat: float = 0.0
+    kritik_esik: int = 10
+
+# --- YARDIMCI FONKSİYONLAR ---
 def clean_product_name(name: str) -> str:
     """
     Ürün adındaki Türkçe karakterleri İngilizceye çevirir, hacim, 
     paket ve gereksiz karakterleri temizleyerek ana kökü bulur.
     """
-    # 1. TÜRKÇE HARF KALKANI: I-İ ve diğer karakter karmaşasını kökten çözer
     turkce_map = str.maketrans("İıĞğŞşÇçÖöÜü", "IiGgSsCcOoUu")
     n = name.translate(turkce_map).upper()
     
-    # 330ML, 1L, 250ML, 2,5LT gibi hacim ibarelerini temizle
     n = re.sub(r'\b\d+(?:,\d+)?\s*(?:ML|L|LT|LITRE|LITRE)\b', '', n)
-    # *24, 24LÜ, *20, *6 gibi paket adetlerini temizle
     n = re.sub(r'[\*xX]\d+\b', '', n)
     n = re.sub(r'\b\d+\s*(?:LU|LI|LI|LY|lU|li)\b', '', n)
-    # Özel sembolleri ve gereksiz boşlukları uçur
     n = re.sub(r'[^A-Z0-9\s]', '', n)
     return " ".join(n.split()).strip()
 
@@ -70,14 +83,12 @@ async def find_matching_product(raw_name: str) -> str:
     if not incoming_clean:
         return incoming_upper
         
-    # MARKA KORUMA HAVUZU
     markalar = ["COCA COLA", "COCA-COLA", "TURKA", "SARIYER", "PEPSI", "LIPTON", "ULUDAG", "NIGDE", "BUZDAGI", "CAPRI", "REDBULL", "RED BULL"]
     
     async for prod in products_collection.find({}):
         db_upper = prod["urun_adi"].upper()
         db_clean = clean_product_name(prod["urun_adi"])
         
-        # 1. MARKA KORUMASI
         marka_hatasi = False
         for marka in markalar:
             if (marka in incoming_upper) != (marka in db_upper):
@@ -86,11 +97,8 @@ async def find_matching_product(raw_name: str) -> str:
         if marka_hatasi:
             continue
             
-        # 2. AGRESİF ALT METİN (SUBSTRING) KONTROLÜ
-        # Eğer temizlenmiş isimlerden biri diğerinin içinde tamamen geçiyorsa 
-        # (Örn: "PEPSI" kelimesi "PEPSI" içinde veya "PEPSI" kelimesi "PEPSI 330ML" içinde geçiyorsa)
         if incoming_clean in db_clean or db_clean in incoming_clean:
-            return prod["urun_adi"] # Eski kartın adını koru ve birleştir
+            return prod["urun_adi"]
             
     return incoming_upper
 
@@ -181,7 +189,6 @@ def parse_pdf_invoice(content: bytes):
                     split_row_cells = []
                     for cell in row:
                         if cell:
-                            # \n ile alt satıra kırılan parçaları (Örn: PEPSI \n 330ML*24) yan yana boşlukla birleştiriyoruz
                             clean_cell = " ".join([c.strip() for c in cell.split('\n') if c.strip()])
                             split_row_cells.append([clean_cell])
                         else:
@@ -244,6 +251,16 @@ def parse_pdf_invoice(content: bytes):
 
     return invoice_data
 
+
+# --- ENDPOINTLER (ROUTELER) ---
+
+@app.post("/api/login")
+async def login(request: LoginRequest):
+    user = await users_collection.find_one({"username": request.username})
+    if user and user["password"] == request.password:
+        return {"message": "Giriş başarılı", "user": {"name": user["name"], "role": user["role"]}}
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Hatalı kullanıcı adı veya şifre")
+
 @app.post("/api/upload-invoice")
 async def upload_invoice(file: UploadFile = File(...), invoice_type: str = "gelen"):
     try:
@@ -256,8 +273,6 @@ async def upload_invoice(file: UploadFile = File(...), invoice_type: str = "gele
         if not invoice_data["fatura_no"] or len(invoice_data["kalemler"]) == 0:
             raise HTTPException(status_code=400, detail="Fatura şablonu tanınmadı.")
         
-        # ARTIK BURADA VERİTABANINA KAYDETMİYORUZ VE STOKLARI UÇURMUYORUZ!
-        # Sadece arayüze tahmin edilen verileri önizleme olarak fırlatıyoruz.
         invoice_data["invoice_type"] = invoice_type
         return {"message": "Fatura başarıyla çözümlendi, onay bekleniyor.", "data": invoice_data}
     except Exception as e:
@@ -340,9 +355,34 @@ async def get_products_list():
     try:
         products = []
         async for prod in products_collection.find({}).sort("stok_miktari", -1):
-            products.append({"id": str(prod["_id"]), "urun_adi": prod.get("urun_adi", "Bilinmeyen Ürün"), "stok_miktari": prod.get("stok_miktari", 0), "birim_fiyat": prod.get("son_birim_fiyat", 0.0), "kritik_esik": 10})
+            products.append({"id": str(prod["_id"]), "urun_adi": prod.get("urun_adi", "Bilinmeyen Ürün"), "stok_miktari": prod.get("stok_miktari", 0), "birim_fiyat": prod.get("son_birim_fiyat", 0.0), "kritik_esik": prod.get("kritik_esik", 10)})
         return products
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/add-product")
+async def add_product(request: ProductAddRequest):
+    try:
+        urun_adi_upper = request.urun_adi.strip().upper()
+        if not urun_adi_upper:
+            raise HTTPException(status_code=400, detail="Ürün adı boş olamaz.")
+        
+        # Check if already exists
+        existing = await products_collection.find_one({"urun_adi": urun_adi_upper})
+        if existing:
+            raise HTTPException(status_code=400, detail="Bu isimde bir ürün zaten mevcut.")
+            
+        new_prod = {
+            "urun_adi": urun_adi_upper,
+            "stok_miktari": request.stok_miktari,
+            "son_birim_fiyat": request.birim_fiyat,
+            "kritik_esik": request.kritik_esik
+        }
+        result = await products_collection.insert_one(new_prod)
+        return {"message": "Ürün başarıyla eklendi.", "id": str(result.inserted_id)}
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/delete-product/{product_id}")
 async def delete_product(product_id: str):
@@ -355,24 +395,14 @@ async def delete_product(product_id: str):
         return {"message": "Ürün envanterden kaldırıldı, geçmiş fatura kayıtları korundu."}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-class FinalInvoiceSaveRequest(BaseModel):
-    fatura_no: str
-    fatura_tarihi: str
-    musteri_unvani: str
-    toplam_tutar: float
-    invoice_type: str
-    kalemler: list # İçinde urun_adi, miktar, birim_fiyat, toplam ve db_urun_adi (Seçilen Ürün) olacak
-
 @app.post("/api/save-final-invoice")
 async def save_final_invoice(request: FinalInvoiceSaveRequest):
     try:
         invoice_data = request.dict()
         
-        # 1. Faturayı koleksiyona kaydet
         await invoices_collection.insert_one(invoice_data)
         if "_id" in invoice_data: del invoice_data["_id"]
         
-        # 2. Cari Portföyünü Güncelle
         if request.invoice_type == "giden":
             await customers_collection.update_one(
                 {"musteri_unvani": request.musteri_unvani}, 
@@ -380,11 +410,8 @@ async def save_final_invoice(request: FinalInvoiceSaveRequest):
                 upsert=True
             )
 
-        # 3. Kullanıcının el seçimiyle eşleştirdiği DB ürünlerine göre stokları güncelle
         for item in request.kalemler:
-            # Eğer kullanıcı listeden elle bir ürün seçtiyse onu baz al, seçmediyse faturadaki adı kullan
             hedef_urun_adi = item.get("db_urun_adi") if item.get("db_urun_adi") else item["urun_adi"]
-            
             stok_degisimi = item["miktar"] if request.invoice_type == "gelen" else -item["miktar"]
             
             await products_collection.update_one(
@@ -400,12 +427,6 @@ async def save_final_invoice(request: FinalInvoiceSaveRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-class StockUpdateRequest(BaseModel):
-    amount: float
-
-class ProductNameUpdateRequest(BaseModel):
-    new_name: str
-
 @app.put("/api/update-product-name/{product_id}")
 async def update_product_name(product_id: str, request: ProductNameUpdateRequest):
     try:
@@ -414,18 +435,14 @@ async def update_product_name(product_id: str, request: ProductNameUpdateRequest
             raise HTTPException(status_code=404, detail="Ürün bulunamadı.")
         
         new_name_upper = request.new_name.strip().upper()
-        # Veritabanında ürün adını güncelle
         await products_collection.update_one(
             {"_id": ObjectId(product_id)}, 
             {"$set": {"urun_adi": new_name_upper}}
         )
-        # Geçmiş faturaları da etkilemek isteniyorsa eklenebilir, şimdilik sadece stok ismini değiştirelim.
-        # İhtiyaç olursa: await invoices_collection.update_many({"kalemler.urun_adi": product.get("urun_adi")}, {"$set": {"kalemler.$[elem].urun_adi": new_name_upper}}, array_filters=[{"elem.urun_adi": product.get("urun_adi")}])
         
         return {"message": "Ürün adı başarıyla güncellendi", "new_name": new_name_upper}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.put("/api/update-stock/{product_id}")
 async def update_stock(product_id: str, request: StockUpdateRequest):

@@ -13,6 +13,14 @@ export default function Stocks({ setAuth }) {
   const [editingProductId, setEditingProductId] = useState(null);
   const [editName, setEditName] = useState('');
 
+  // Yeni Ürün Ekleme State'leri
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdPrice, setNewProdPrice] = useState(0);
+  const [newProdStock, setNewProdStock] = useState(0);
+  const [newProdCritical, setNewProdCritical] = useState(10);
+  const [addLoading, setAddLoading] = useState(false);
+
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -114,6 +122,45 @@ export default function Stocks({ setAuth }) {
     }
   };
 
+  const handleAddProductSubmit = async (e) => {
+    e.preventDefault();
+    if (!newProdName.trim()) {
+      alert("Ürün adı boş olamaz.");
+      return;
+    }
+
+    setAddLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/add-product`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          urun_adi: newProdName,
+          stok_miktari: Number(newProdStock),
+          birim_fiyat: Number(newProdPrice),
+          kritik_esik: Number(newProdCritical)
+        })
+      });
+
+      if (response.ok) {
+        setIsAddModalOpen(false);
+        // Reset form
+        setNewProdName('');
+        setNewProdPrice(0);
+        setNewProdStock(0);
+        setNewProdCritical(10);
+        fetchProducts();
+      } else {
+        const errData = await response.json();
+        alert(`Hata: ${errData.detail || "Ürün eklenemedi."}`);
+      }
+    } catch (err) {
+      alert("Sunucuyla bağlantı kurulamadı.");
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
   const filteredProducts = products.filter(prod =>
     prod.urun_adi.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => a.urun_adi.localeCompare(b.urun_adi, 'tr'));
@@ -136,8 +183,19 @@ export default function Stocks({ setAuth }) {
               className="w-full pl-10 pr-4 py-2.5 bg-gray-300 border border-gray-300 rounded-xl text-xs text-gray-900 outline-none focus:border-gray-1000 focus:ring-1 focus:ring-gray-300 transition-all"
             />
           </div>
-          <div className="flex items-center gap-4 text-xs font-bold text-gray-600 px-2">
-            <span>Toplam Çeşit: <span className="text-gray-900">{products.length}</span> Kalem</span>
+          <div className="flex items-center justify-between sm:justify-end gap-4">
+            <div className="text-xs font-bold text-gray-600 px-2">
+              <span>Toplam Çeşit: <span className="text-gray-900">{products.length}</span> Kalem</span>
+            </div>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Yeni Ürün Ekle
+            </button>
           </div>
         </div>
 
@@ -388,6 +446,97 @@ export default function Stocks({ setAuth }) {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* YENİ ÜRÜN EKLEME MODALI */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-gray-200 border border-gray-300 max-w-md w-full p-6 rounded-2xl shadow-xl relative overflow-hidden animate-[scaleUp_0.25s_ease-out]">
+            
+            <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 text-xl mb-4">
+              📦
+            </div>
+
+            <h3 className="text-base font-bold text-gray-900">Envantere Yeni Ürün Ekle</h3>
+            <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">
+              Depoya kaydedilecek yeni ürünün bilgilerini giriniz. Ürün adı benzersiz olmalıdır.
+            </p>
+
+            <form onSubmit={handleAddProductSubmit} className="mt-4 space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Ürün Adı / Tanımı *</label>
+                <input
+                  type="text"
+                  required
+                  value={newProdName}
+                  onChange={(e) => setNewProdName(e.target.value)}
+                  placeholder="ÖRN: COCA COLA 1L"
+                  className="w-full px-3 py-2 bg-gray-300 border border-gray-300 rounded-xl text-xs text-gray-900 outline-none focus:border-gray-1000 focus:ring-1 focus:ring-gray-300 transition-all uppercase"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Birim Fiyat (TL)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={newProdPrice}
+                    onChange={(e) => setNewProdPrice(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-300 border border-gray-300 rounded-xl text-xs text-gray-900 outline-none focus:border-gray-1000 focus:ring-1 focus:ring-gray-300 transition-all font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Başlangıç Stok</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={newProdStock}
+                    onChange={(e) => setNewProdStock(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-300 border border-gray-300 rounded-xl text-xs text-gray-900 outline-none focus:border-gray-1000 focus:ring-1 focus:ring-gray-300 transition-all font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Kritik Eşik</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newProdCritical}
+                    onChange={(e) => setNewProdCritical(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-300 border border-gray-300 rounded-xl text-xs text-gray-900 outline-none focus:border-gray-1000 focus:ring-1 focus:ring-gray-300 transition-all font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3 border-t border-gray-200 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  disabled={addLoading}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:text-gray-800 bg-gray-300 hover:bg-gray-400/50 transition-all duration-300 cursor-pointer"
+                >
+                  İptal Et
+                </button>
+                <button
+                  type="submit"
+                  disabled={addLoading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gray-900 hover:bg-gray-800 shadow-md transition-all cursor-pointer flex items-center gap-2"
+                >
+                  {addLoading ? (
+                    <>
+                      <div className="animate-spin h-3.5 w-3.5 border-b-2 border-white rounded-full"></div>
+                      <span>Ekleniyor...</span>
+                    </>
+                  ) : (
+                    <span>Ürünü Ekle</span>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
