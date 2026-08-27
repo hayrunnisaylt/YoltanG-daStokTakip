@@ -12,6 +12,9 @@ export default function Stocks({ setAuth }) {
   const [productToDelete, setProductToDelete] = useState(null);
   const [editingProductId, setEditingProductId] = useState(null);
   const [editName, setEditName] = useState('');
+  const [editingStockProductId, setEditingStockProductId] = useState(null);
+  const [editStockVal, setEditStockVal] = useState('');
+
 
   // Yeni Ürün Ekleme State'leri
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -121,6 +124,33 @@ export default function Stocks({ setAuth }) {
       console.error("Stok güncellenemedi:", err);
     }
   };
+
+  const handleStockSetSave = async (productId) => {
+    const val = Number(editStockVal);
+    if (isNaN(val) || val < 0) {
+      alert("Lütfen geçerli ve pozitif bir stok miktarı giriniz.");
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/set-stock/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_stock: val })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(products.map(p => p.id === productId ? { ...p, stok_miktari: data.new_stock } : p));
+        setEditingStockProductId(null);
+      } else {
+        alert("Stok miktarı güncellenemedi.");
+      }
+    } catch (err) {
+      console.error("Stok güncellenemedi:", err);
+      alert("Sunucuyla bağlantı kurulamadı.");
+    }
+  };
+
 
   const handleAddProductSubmit = async (e) => {
     e.preventDefault();
@@ -270,25 +300,51 @@ export default function Stocks({ setAuth }) {
                           </td>
                           <td className="p-4 text-center">
                             <div className="flex items-center justify-center gap-1.5">
-                              <button 
-                                onClick={() => handleStockUpdate(prod.id, -1)}
-                                className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
-                                title="1 Adet Düşür"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
-                              </button>
-                              <span className={`inline-block min-w-[2.5rem] px-2 py-1 rounded-lg font-black font-mono text-[13px] ${isCritical ? 'text-amber-600 bg-amber-50 border border-amber-200' : 'text-gray-900 bg-gray-300 border border-gray-400'}`}>
-                                {prod.stok_miktari}
-                              </span>
-                              <button 
-                                onClick={() => handleStockUpdate(prod.id, 1)}
-                                className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
-                                title="1 Adet Artır"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                              </button>
+                              {editingStockProductId === prod.id ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editStockVal}
+                                  onChange={(e) => setEditStockVal(e.target.value)}
+                                  className="w-16 px-1.5 py-0.5 text-xs text-center border border-gray-400 rounded outline-none focus:border-gray-900 bg-white font-mono font-black"
+                                  autoFocus
+                                  onBlur={() => handleStockSetSave(prod.id)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleStockSetSave(prod.id);
+                                    if (e.key === 'Escape') setEditingStockProductId(null);
+                                  }}
+                                />
+                              ) : (
+                                <>
+                                  <button 
+                                    onClick={() => handleStockUpdate(prod.id, -1)}
+                                    className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
+                                    title="1 Adet Düşür"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
+                                  </button>
+                                  <span 
+                                    onDoubleClick={() => {
+                                      setEditingStockProductId(prod.id);
+                                      setEditStockVal(String(prod.stok_miktari));
+                                    }}
+                                    className={`inline-block min-w-[2.5rem] px-2 py-1 rounded-lg font-black font-mono text-[13px] cursor-pointer select-none ${isCritical ? 'text-amber-600 bg-amber-50 border border-amber-200' : 'text-gray-900 bg-gray-300 border border-gray-400'}`}
+                                    title="Çift tıklayarak düzenleyin"
+                                  >
+                                    {prod.stok_miktari}
+                                  </span>
+                                  <button 
+                                    onClick={() => handleStockUpdate(prod.id, 1)}
+                                    className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-600 rounded-md border border-gray-300 transition-colors shadow-sm cursor-pointer"
+                                    title="1 Adet Artır"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </td>
+
                           <td className="p-4 text-center">
                             {isCritical ? (
                               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 rounded border border-amber-200 animate-pulse">
@@ -372,23 +428,49 @@ export default function Stocks({ setAuth }) {
                         <div className="flex flex-col items-center gap-1">
                           <span className="text-[10px] text-gray-600 uppercase font-bold">Stok Ayarı</span>
                           <div className="flex items-center justify-center gap-2">
-                            <button 
-                              onClick={() => handleStockUpdate(prod.id, -1)}
-                              className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-lg border border-gray-400 transition-colors shadow-sm cursor-pointer"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
-                            </button>
-                            <span className={`inline-block min-w-[3rem] text-center px-2 py-1 rounded-lg font-black font-mono text-base ${isCritical ? 'text-amber-600 bg-amber-50 border border-amber-300' : 'text-gray-900 bg-gray-100 border border-gray-400'}`}>
-                              {prod.stok_miktari}
-                            </span>
-                            <button 
-                              onClick={() => handleStockUpdate(prod.id, 1)}
-                              className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-600 rounded-lg border border-gray-400 transition-colors shadow-sm cursor-pointer"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                            </button>
+                            {editingStockProductId === prod.id ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editStockVal}
+                                onChange={(e) => setEditStockVal(e.target.value)}
+                                className="w-20 px-2 py-1 text-sm text-center border border-gray-400 rounded-lg outline-none focus:border-gray-900 bg-white font-mono font-black"
+                                autoFocus
+                                onBlur={() => handleStockSetSave(prod.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleStockSetSave(prod.id);
+                                  if (e.key === 'Escape') setEditingStockProductId(null);
+                                }}
+                              />
+                            ) : (
+                              <>
+                                <button 
+                                  onClick={() => handleStockUpdate(prod.id, -1)}
+                                  className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-lg border border-gray-400 transition-colors shadow-sm cursor-pointer"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
+                                </button>
+                                <span 
+                                  onDoubleClick={() => {
+                                    setEditingStockProductId(prod.id);
+                                    setEditStockVal(String(prod.stok_miktari));
+                                  }}
+                                  className={`inline-block min-w-[3rem] text-center px-2 py-1 rounded-lg font-black font-mono text-base cursor-pointer select-none ${isCritical ? 'text-amber-600 bg-amber-50 border border-amber-300' : 'text-gray-900 bg-gray-100 border border-gray-400'}`}
+                                  title="Çift tıklayarak düzenleyin"
+                                >
+                                  {prod.stok_miktari}
+                                </span>
+                                <button 
+                                  onClick={() => handleStockUpdate(prod.id, 1)}
+                                  className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-600 rounded-lg border border-gray-400 transition-colors shadow-sm cursor-pointer"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
+
                       </div>
 
                       <div className="flex justify-end mt-1">

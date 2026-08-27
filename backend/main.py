@@ -49,6 +49,9 @@ class FinalInvoiceSaveRequest(BaseModel):
 class StockUpdateRequest(BaseModel):
     amount: float
 
+class StockSetRequest(BaseModel):
+    new_stock: float
+
 class ProductNameUpdateRequest(BaseModel):
     new_name: str
 
@@ -454,6 +457,18 @@ async def update_stock(product_id: str, request: StockUpdateRequest):
         await products_collection.update_one({"_id": ObjectId(product_id)}, {"$set": {"stok_miktari": new_stock}})
         return {"message": "Stok başarıyla güncellendi", "new_stock": new_stock}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/set-stock/{product_id}")
+async def set_stock(product_id: str, request: StockSetRequest):
+    try:
+        product = await products_collection.find_one({"_id": ObjectId(product_id)})
+        if not product: raise HTTPException(status_code=404, detail="Ürün bulunamadı.")
+        new_val = request.new_stock
+        if new_val < 0: new_val = 0.0
+        await products_collection.update_one({"_id": ObjectId(product_id)}, {"$set": {"stok_miktari": new_val}})
+        return {"message": "Stok başarıyla güncellendi", "new_stock": new_val}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/toptancilar-list")
 async def get_toptancilar_list():
