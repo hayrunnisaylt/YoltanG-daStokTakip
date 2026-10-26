@@ -2,6 +2,7 @@ import io
 import json
 import re
 from bs4 import BeautifulSoup
+from typing import Optional
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -499,6 +500,63 @@ async def get_toptanci_invoices(toptanci_name: str):
     try:
         invoices = []
         async for inv in invoices_collection.find({"musteri_unvani": toptanci_name, "invoice_type": "gelen"}).sort("_id", -1):
+            if "_id" in inv: 
+                inv["_id"] = str(inv["_id"])
+            invoices.append(inv)
+        return invoices
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+def turkish_search_regex(search_text: str) -> str:
+    escaped = re.escape(search_text.strip())
+    char_map = {
+        "c": "[cçCÇ]", "ç": "[cçCÇ]",
+        "g": "[gğGĞ]", "ğ": "[gğGĞ]",
+        "i": "[iıİI]", "ı": "[iıİI]",
+        "o": "[oöOÖ]", "ö": "[oöOÖ]",
+        "s": "[sşSŞ]", "ş": "[sşSŞ]",
+        "u": "[uüUÜ]", "ü": "[uüUÜ]",
+    }
+    result = []
+    i = 0
+    while i < len(escaped):
+        if escaped[i] == "\\" and i + 1 < len(escaped):
+            ch = escaped[i+1].lower()
+            if ch in char_map:
+                result.append(char_map[ch])
+                i += 2
+                continue
+            else:
+                result.append(escaped[i:i+2])
+                i += 2
+                continue
+        ch = escaped[i].lower()
+        if ch in char_map:
+            result.append(char_map[ch])
+        else:
+            result.append(escaped[i])
+        i += 1
+    return "".join(result)
+
+@app.get("/api/search-gelen-invoices")
+async def search_gelen_invoices(q: str = "", toptanci: Optional[str] = None):
+    try:
+        query = {"invoice_type": "gelen"}
+        if toptanci and toptanci.strip():
+            query["musteri_unvani"] = toptanci.strip()
+            
+        if q and q.strip():
+            pattern = turkish_search_regex(q)
+            search_regex = {"$regex": pattern, "$options": "i"}
+            query["$or"] = [
+                {"kalemler.urun_adi": search_regex},
+                {"kalemler.db_urun_adi": search_regex},
+                {"fatura_no": search_regex},
+                {"musteri_unvani": search_regex}
+            ]
+            
+        invoices = []
+        async for inv in invoices_collection.find(query).sort("_id", -1):
             if "_id" in inv: 
                 inv["_id"] = str(inv["_id"])
             invoices.append(inv)
