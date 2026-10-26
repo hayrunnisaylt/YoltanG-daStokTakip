@@ -106,10 +106,33 @@ async def find_matching_product(raw_name: str) -> str:
             
     return incoming_upper
 
-def parse_html_invoice(content: bytes):
+def parse_tr_float(val_str) -> float:
+    if not val_str:
+        return 0.0
+    s = str(val_str).strip().replace("TL", "").replace("tl", "").replace("₺", "").replace("\xa0", "").strip()
+    for unit in ["Adet", "adet", "ADET", "Koli", "koli", "KOLİ", "KG", "kg", "Kg", "LT", "lt", "L"]:
+        s = re.sub(rf"\b{unit}\b", "", s).strip()
+    if not s:
+        return 0.0
+    if "." in s and "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    elif "." in s:
+        parts = s.split(".")
+        if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+            s = "".join(parts)
+    s = re.sub(r"[^\d.-]", "", s)
+    try:
+        return float(s)
+    except:
+        return 0.0
+
+def parse_html_invoice(content: bytes, invoice_type: str = "gelen"):
     soup = BeautifulSoup(content.decode('utf-8', errors='ignore'), 'html.parser')
     invoice_data = {"fatura_no": "", "fatura_tarihi": "", "musteri_unvani": "Bilinmeyen Firma/Cari", "toplam_tutar": 0.0, "kalemler": []}
 
+    # 1. Cari / Tedarikçi Unvanı
     customer_table = soup.find('table', id='customerPartyTable')
     if customer_table:
         cells_text = [td.text.strip() for td in customer_table.find_all('td') if td.text.strip()]
@@ -121,6 +144,7 @@ def parse_html_invoice(content: bytes):
         else:
             if cells_text: invoice_data["musteri_unvani"] = cells_text[0].replace('\xa0', ' ')
 
+    # 2. Fatura No ve Tarih (despatchTable veya genel arama)
     despatch_table = soup.find('table', id='despatchTable')
     if despatch_table:
         for row in despatch_table.find_all('tr'):
@@ -133,20 +157,92 @@ def parse_html_invoice(content: bytes):
                     tarih_kismi = val.split()[0]
                     parts = tarih_kismi.split('-')
                     if len(parts) == 3: invoice_data["fatura_tarihi"] = f"{parts[2]}-{parts[1]}-{parts[0]}"
+    
+    # Fallback Fatura No & Tarih
+    if not invoice_data["fatura_no"]:
+        m = re.search(r'Fatura No:?\s*([A-Z0-9]+)', soup.text)
+        if m: invoice_data["fatura_no"] = m.group(1).strip()
+    if not invoice_data["fatura_tarihi"]:
+        m = re.search(r'Fatura Tarihi:?\s*(\d{2})[-./](\d{2})[-./](\d{4})', soup.text)
+        if m: invoice_data["fatura_tarihi"] = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
 
+    # 3. Toplam Tutar
     budget_table = soup.find('table', id='budgetContainerTable')
     if budget_table:
         for row in budget_table.find_all('tr'):
-            if "Ödenecek Tutar" in row.text:
+            if "Ödenecek Tutar" in row.text or "Vergiler Dahil" in row.text:
                 cells = row.find_all('td')
                 if cells:
-                    val_str = cells[-1].text.replace('TL', '').strip().replace('\xa0', '')
-                    val_str = val_str.replace('.', '').replace(',', '.')
-                    try: invoice_data["toplam_tutar"] = float(val_str)
-                    except: pass
+                    parsed_tot = parse_tr_float(cells[-1].text)
+                    if parsed_tot > 0:
+                        invoice_data["toplam_tutar"] = parsed_tot
 
+    if invoice_data["toplam_tutar"] == 0.0:
+        m = re.search(r'(?:Ödenecek\s*Tutar|Vergiler\s*Dahil\s*Toplam\s*Tutar)[:]?\s*([\d\.,]+)\s*TL', soup.text)
+        if m:
+            invoice_data["toplam_tutar"] = parse_tr_float(m.group(1))
+
+    # 4. Kalemler (lineTable veya Genel Tablo Taraması)
+    tables_to_check = []
     line_table = soup.find('table', id='lineTable')
     if line_table:
+        tables_to_check.append(line_table)
+    else:
+        tables_to_check = soup.find_all('table')
+
+    for table in tables_to_check:
+        rows = table.find_all('tr')
+        if len(rows) < 2:
+            continue
+            
+        header_idx = -1
+        name_idx = -1
+        qty_idx = -1
+        price_idx = -1
+        total_idx = -1
+        
+        for r_idx, row in enumerate(rows[:3]):
+            cells = [td.text.lower().replace('\n', ' ').strip() for td in row.find_all(['th', 'td'])]
+            for c_idx, cell in enumerate(cells):
+                if any(k in cell for k in ["mal hizmet", "mal/hizmet", "ürün adı", "stok adı", "açıklama"]):
+                    if not any(k in cell for k in ["tutar", "kdv", "oran", "iskonto"]):
+                        name_idx = c_idx
+                if "miktar" in cell:
+                    qty_idx = c_idx
+                if any(k in cell for k in ["birim fiyat", "b.fiyat"]):
+                    price_idx = c_idx
+                if any(k in cell for k in ["mal hizmet tutar", "tutar"]) and not any(x in cell for x in ["kdv", "iskonto", "vergi"]):
+                    total_idx = c_idx
+                    
+            if name_idx != -1 and qty_idx != -1:
+                header_idx = r_idx
+                break
+                
+        if header_idx != -1:
+            for row in rows[header_idx + 1:]:
+                cols = row.find_all(['td', 'th'])
+                if len(cols) <= max(name_idx, qty_idx):
+                    continue
+                name_cell = cols[name_idx].text.strip().replace('\xa0', ' ')
+                name_lower = name_cell.lower()
+                if not name_cell or any(k in name_lower for k in ["toplam", "ödenecek", "kdv", "matrah", "genel", "mal hizmet toplam"]):
+                    continue
+                
+                qty = parse_tr_float(cols[qty_idx].text)
+                price = parse_tr_float(cols[price_idx].text) if price_idx != -1 and price_idx < len(cols) else 0.0
+                total = parse_tr_float(cols[total_idx].text) if total_idx != -1 and total_idx < len(cols) else 0.0
+                if total == 0.0 and qty > 0 and price > 0:
+                    total = round(qty * price, 2)
+                    
+                if name_cell and qty > 0:
+                    clean_name = " ".join(name_cell.split()).upper()
+                    if not any(k["urun_adi"] == clean_name for k in invoice_data["kalemler"]):
+                        invoice_data["kalemler"].append({"urun_adi": clean_name, "miktar": qty, "birim_fiyat": price, "toplam": total})
+            if len(invoice_data["kalemler"]) > 0:
+                break
+
+    # Genel Fallback
+    if len(invoice_data["kalemler"]) == 0 and line_table:
         for row in line_table.find_all('tr')[1:]:
             cols = row.find_all('td')
             if len(cols) >= 5:
@@ -162,33 +258,116 @@ def parse_html_invoice(content: bytes):
                 
                 for cell in cols[2:]:
                     cell_text = cell.text.strip().replace('\xa0', '')
+                    m = parse_tr_float(cell_text)
                     if any(u in cell_text for u in ["Adet", "Koli", "KG"]):
-                        m_str = cell_text.replace('Adet', '').replace('Koli', '').replace('KG', '').strip().replace('.', '').replace(',', '.')
-                        try: miktar = float(m_str)
-                        except: pass
+                        miktar = m
                     elif "TL" in cell_text:
-                        p_str = cell_text.replace('TL', '').strip().replace('.', '').replace(',', '.')
-                        try:
-                            val = float(p_str)
-                            if birim_fiyat == 0.0: birim_fiyat = val
-                            else: toplam = val
-                        except: pass
+                        if birim_fiyat == 0.0: birim_fiyat = m
+                        else: toplam = m
 
-                if toplam == 0.0 and miktar > 0 and birim_fiyat > 0: toplam = miktar * birim_fiyat
+                if toplam == 0.0 and miktar > 0 and birim_fiyat > 0: toplam = round(miktar * birim_fiyat, 2)
                 if miktar > 0 or toplam > 0:
-                    invoice_data["kalemler"].append({"urun_adi": urun_adi, "miktar": miktar, "birim_fiyat": birim_fiyat, "toplam": toplam})
-                
+                    invoice_data["kalemler"].append({"urun_adi": urun_adi.upper(), "miktar": miktar, "birim_fiyat": birim_fiyat, "toplam": toplam})
+
     return invoice_data
 
-def parse_pdf_invoice(content: bytes):
-    invoice_data = {"fatura_no": "", "fatura_tarihi": "", "musteri_unvani": "Bilinmeyen Toptancı", "toplam_tutar": 0.0, "kalemler": []}
+def parse_pdf_invoice(content: bytes, invoice_type: str = "gelen"):
+    invoice_data = {
+        "fatura_no": "",
+        "fatura_tarihi": "",
+        "musteri_unvani": "",
+        "toplam_tutar": 0.0,
+        "kalemler": []
+    }
     
     with pdfplumber.open(io.BytesIO(content)) as pdf:
         full_text = ""
+        all_tables = []
         for page in pdf.pages:
-            full_text += page.extract_text() or ""
-            tables = page.extract_tables()
-            for table in tables:
+            p_text = page.extract_text() or ""
+            full_text += p_text + "\n"
+            all_tables.extend(page.extract_tables() or [])
+            
+        # 1. TABLOLARDAN VERİ ÇIKARMA (Öncelikli Başlık Eşleştirme)
+        for table in all_tables:
+            if not table or len(table) < 2:
+                continue
+                
+            header_idx = -1
+            name_idx = -1
+            qty_idx = -1
+            price_idx = -1
+            total_idx = -1
+            
+            for r_idx, row in enumerate(table[:3]):
+                clean_row = [str(c).lower().replace("\n", " ").strip() if c else "" for c in row]
+                for c_idx, cell in enumerate(clean_row):
+                    if any(k in cell for k in ["mal hizmet", "mal/hizmet", "ürün adı", "stok adı", "açıklama"]):
+                        if not any(k in cell for k in ["tutar", "kdv", "oran", "iskonto"]):
+                            name_idx = c_idx
+                    if "miktar" in cell:
+                        qty_idx = c_idx
+                    if any(k in cell for k in ["birim fiyat", "b.fiyat"]):
+                        price_idx = c_idx
+                    if any(k in cell for k in ["mal hizmet tutar", "tutar"]) and not any(x in cell for x in ["kdv", "iskonto", "vergi"]):
+                        total_idx = c_idx
+                            
+                if name_idx != -1 and qty_idx != -1:
+                    header_idx = r_idx
+                    break
+                    
+            if header_idx != -1:
+                for row in table[header_idx + 1:]:
+                    if not row or len(row) <= max(name_idx, qty_idx):
+                        continue
+                    name_cell = str(row[name_idx] or "").strip().replace("\n", " ")
+                    if not name_cell or any(k in name_cell.lower() for k in ["toplam", "ödenecek", "kdv", "matrah", "genel", "mal hizmet toplam"]):
+                        continue
+                    
+                    qty = parse_tr_float(row[qty_idx])
+                    price = parse_tr_float(row[price_idx]) if price_idx != -1 and price_idx < len(row) else 0.0
+                    total = parse_tr_float(row[total_idx]) if total_idx != -1 and total_idx < len(row) else 0.0
+                    if total == 0.0 and qty > 0 and price > 0:
+                        total = round(qty * price, 2)
+                        
+                    if name_cell and qty > 0:
+                        clean_name = " ".join(name_cell.split()).upper()
+                        if not any(k["urun_adi"] == clean_name for k in invoice_data["kalemler"]):
+                            invoice_data["kalemler"].append({
+                                "urun_adi": clean_name,
+                                "miktar": qty,
+                                "birim_fiyat": price,
+                                "toplam": total
+                            })
+                            
+            # Tablo içinde Fatura No, Tarih veya Ödenecek Tutar arama
+            for row in table:
+                for i, c in enumerate(row):
+                    if not c:
+                        continue
+                    c_clean = str(c).replace("\n", " ").strip()
+                    if "Fatura No:" in c_clean or "Fatura No" in c_clean:
+                        if i + 1 < len(row) and row[i+1]:
+                            invoice_data["fatura_no"] = str(row[i+1]).replace("\n", "").strip()
+                        else:
+                            m = re.search(r"Fatura No:?\s*([A-Z0-9]+)", c_clean)
+                            if m: invoice_data["fatura_no"] = m.group(1).strip()
+                            
+                    if "Fatura Tarihi" in c_clean:
+                        val_str = str(row[i+1]).strip() if i + 1 < len(row) and row[i+1] else c_clean
+                        m = re.search(r"(\d{2})[-./](\d{2})[-./](\d{4})", val_str)
+                        if m:
+                            invoice_data["fatura_tarihi"] = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+                            
+                    if "Ödenecek Tutar" in c_clean or "Vergiler Dahil Toplam Tutar" in c_clean:
+                        val_str = str(row[i+1]).strip() if i + 1 < len(row) and row[i+1] else c_clean
+                        val_parsed = parse_tr_float(val_str)
+                        if val_parsed > 0:
+                            invoice_data["toplam_tutar"] = val_parsed
+
+        # 2. TABLO EŞLEŞMESİ OLMADIYSA SATIR BAZLI FALLBACK
+        if len(invoice_data["kalemler"]) == 0:
+            for table in all_tables:
                 for row in table:
                     split_row_cells = []
                     for cell in row:
@@ -218,40 +397,69 @@ def parse_pdf_invoice(content: bytes):
                         
                         for cell_clean in row_cells:
                             if any(u in cell_clean for u in ["Adet", "Koli", "KG"]):
-                                m_str = cell_clean.replace('Adet', '').replace('Koli', '').replace('KG', '').strip().replace('.', '').replace(',', '.')
-                                try: miktar = float(m_str)
-                                except: pass
+                                m = parse_tr_float(cell_clean)
+                                if m > 0: miktar = m
                             elif "TL" in cell_clean:
-                                p_str = cell_clean.replace('TL', '').strip().replace('.', '').replace(',', '.')
-                                try:
-                                    val = float(p_str)
-                                    if birim_fiyat == 0.0: birim_fiyat = val
-                                    else: toplam = val
-                                except: pass
+                                p = parse_tr_float(cell_clean)
+                                if birim_fiyat == 0.0: birim_fiyat = p
+                                else: toplam = p
                             elif len(cell_clean) > 2 and "%" not in cell_clean and not cell_clean.replace(".","").replace(",","").isdigit():
                                 urun_adi = cell_clean
 
-                        if toplam == 0.0 and miktar > 0 and birim_fiyat > 0: toplam = miktar * birim_fiyat
+                        if toplam == 0.0 and miktar > 0 and birim_fiyat > 0: toplam = round(miktar * birim_fiyat, 2)
                         if urun_adi and miktar > 0:
                             final_name = urun_adi.upper().strip()
                             if not any(k["urun_adi"] == final_name for k in invoice_data["kalemler"]):
                                 invoice_data["kalemler"].append({"urun_adi": final_name, "miktar": miktar, "birim_fiyat": birim_fiyat, "toplam": toplam})
 
-    fatura_no_match = re.search(r'Fatura No:\s*([A-Z0-9]+)', full_text)
-    if fatura_no_match: invoice_data["fatura_no"] = fatura_no_match.group(1).strip()
-        
-    fatura_tarihi_match = re.search(r'Fatura Tarihi:\s*(\d{2})\s*-\s*(\d{2})\s*-\s*(\d{4})', full_text)
-    if fatura_tarihi_match:
-        gun, ay, yil = fatura_tarihi_match.groups()
-        invoice_data["fatura_tarihi"] = f"{yil}-{ay}-{gun}"
-        
-    if "ÖZ BA" in full_text: invoice_data["musteri_unvani"] = "ÖZ BA TOPLU TÜKETİM GID.SAN.VE TİC.A.Ş."
-    elif "ÖZHAMUR" in full_text: invoice_data["musteri_unvani"] = "ÖZHAMUR GIDA MADDELERİ SANAYİ VE TİCARET LİMİTED ŞİRKETİ"
-    elif "KERİM KARABACAK" in full_text: invoice_data["musteri_unvani"] = "İBRAHİM KERİM KARABACAK"
-        
-    odenecek_text = "".join(full_text.split())
-    odenecek_match = re.search(r'(?:ÖdenecekTutar|VergilerDahilToplamTutar)([\d\.,]+)TL', odenecek_text)
-    if odenecek_match: invoice_data["toplam_tutar"] = float(odenecek_match.group(1).replace('.', '').replace(',', '.'))
+        # 3. FATURA NO VE TARİH FALLBACK (Metinden)
+        if not invoice_data["fatura_no"]:
+            fatura_no_match = re.search(r'Fatura No:\s*([A-Z0-9]+)', full_text)
+            if fatura_no_match: invoice_data["fatura_no"] = fatura_no_match.group(1).strip()
+            
+        if not invoice_data["fatura_tarihi"]:
+            fatura_tarihi_match = re.search(r'Fatura Tarihi:\s*(\d{2})\s*[-./]\s*(\d{2})\s*[-./]\s*(\d{4})', full_text)
+            if fatura_tarihi_match:
+                gun, ay, yil = fatura_tarihi_match.groups()
+                invoice_data["fatura_tarihi"] = f"{yil}-{ay}-{gun}"
+            else:
+                m2 = re.search(r'(\d{2})[-./](\d{2})[-./](\d{4})', full_text)
+                if m2:
+                    invoice_data["fatura_tarihi"] = f"{m2.group(3)}-{m2.group(2)}-{m2.group(1)}"
+                    
+        # 4. TOPLAM TUTAR FALLBACK
+        if invoice_data["toplam_tutar"] == 0.0:
+            odenecek_text = "".join(full_text.split())
+            odenecek_match = re.search(r'(?:ÖdenecekTutar|VergilerDahilToplamTutar)[:]?([\d\.,]+)TL', odenecek_text)
+            if odenecek_match:
+                invoice_data["toplam_tutar"] = parse_tr_float(odenecek_match.group(1))
+            else:
+                invoice_data["toplam_tutar"] = round(sum(k["toplam"] for k in invoice_data["kalemler"]), 2)
+
+        # 5. CARİ / TOPTANCI UNVANI
+        if "ÖZ BA" in full_text: 
+            invoice_data["musteri_unvani"] = "ÖZ BA TOPLU TÜKETİM GID.SAN.VE TİC.A.Ş."
+        elif "ÖZHAMUR" in full_text: 
+            invoice_data["musteri_unvani"] = "ÖZHAMUR GIDA MADDELERİ SANAYİ VE TİCARET LİMİTED ŞİRKETİ"
+        elif "KERİM KARABACAK" in full_text or "İBRAHİM KERİM" in full_text: 
+            invoice_data["musteri_unvani"] = "İBRAHİM KERİM KARABACAK"
+        else:
+            lines = [l.strip() for l in full_text.split("\n") if l.strip()]
+            if invoice_type == "gelen":
+                for l in lines:
+                    if any(skip in l.lower() for skip in ["e-arşiv", "tarih", "saat", "sayfa", "fatura", "ettn", "subeno"]):
+                        continue
+                    if len(l) > 3 and not l.isdigit():
+                        invoice_data["musteri_unvani"] = l
+                        break
+            else:
+                for i, l in enumerate(lines):
+                    if l.upper() == "SAYIN" and i + 1 < len(lines):
+                        invoice_data["musteri_unvani"] = lines[i+1]
+                        break
+                        
+        if not invoice_data["musteri_unvani"]:
+            invoice_data["musteri_unvani"] = "Bilinmeyen Tedarikçi / Cari"
 
     return invoice_data
 
@@ -270,8 +478,8 @@ async def upload_invoice(file: UploadFile = File(...), invoice_type: str = "gele
     try:
         content = await file.read()
         filename_lower = file.filename.lower()
-        if filename_lower.endswith('.html'): invoice_data = parse_html_invoice(content)
-        elif filename_lower.endswith('.pdf'): invoice_data = parse_pdf_invoice(content)
+        if filename_lower.endswith('.html'): invoice_data = parse_html_invoice(content, invoice_type)
+        elif filename_lower.endswith('.pdf'): invoice_data = parse_pdf_invoice(content, invoice_type)
         else: raise HTTPException(status_code=400, detail="Sadece HTML veya PDF desteklenir.")
         
         if not invoice_data["fatura_no"] or len(invoice_data["kalemler"]) == 0:
